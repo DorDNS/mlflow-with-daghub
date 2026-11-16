@@ -1,0 +1,46 @@
+name: Build Docker image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (fetches the latest model from DagsHub via MLflow)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: digits-api:latest
+          build-args: |
+            CACHEBUST=${{ github.run_id }}
+          secrets: |
+            mlflow_username=${{ secrets.MLFLOW_TRACKING_USERNAME }}
+            mlflow_password=${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+
+      - name: Smoke test the /predict endpoint
+        run: |
+          docker run -d --name digits-api -p 8000:8000 digits-api:latest
+          python3 -c "print('{\"features\":' + str([0.0]*64) + '}')" > payload.json
+          for i in $(seq 1 30); do
+            if curl -sf -X POST http://localhost:8000/predict \
+                 -H "Content-Type: application/json" -d @payload.json; then
+              echo
+              echo "Smoke test passed"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Smoke test failed"
+          docker logs digits-api
+          exit 1

@@ -1,0 +1,11 @@
+.venv
+.git
+.github
+.dvc
+.dvcignore
+data
+model
+__pycache__
+*.pyc
+MLFlowSetup.ipynb
+.env
